@@ -7,9 +7,9 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Chapter 1 - Generative Models for Discrete Data
+# Chapter 1 - Generative Models for Discrete Data
 
-#Section 1.1 Objectives
+## Section 1.1 Objectives
 
 Actions of counting permeate biology and often consider the following questions:  
 - How **much**?  
@@ -20,7 +20,7 @@ The results of interrigating these questions result in *discrete* variables, the
 
 This chapter considers a **top down** approach to understanding the outcome of events, or *probabilities*. These probabilities differ based on the model on which these outcomes occur.  
 
-# Section 1.2 HIV mutation rate  
+## Section 1.2 HIV mutation rate  
 
 Given a mutation rate of 5x10^-4 nt per replication cycle, then the rate of mutations along the HIV genome of about 10,000 nt will follow a Poisson distribution with a rate of 5. The standard error will be 5^1/2
 
@@ -61,7 +61,7 @@ but dpois() is easier to write.
 
 Other distributions used for describing discrete events include the: Bernoulli, binomial, and multinomial distributions.  
 
-# 1.3 Exploring discrete probability models
+## 1.3 Exploring discrete probability models
 
 Mutations can also be thought of through a binary model: yes or no, mutation or not, these are known as the *levels* of the categorical variable.
 
@@ -71,7 +71,7 @@ Codons have 64 levels...
 
 If the order of data observed doesn't matter, then the random variable is called *exchangeable*. If this is the case, then the only measurement that matters if count, not order. 
 
-# 1.3.1 Bernoulli
+### 1.3.1 Bernoulli
 
 A simple Bernoulli trial is a two-outcome coin flip: **heads** and **tails**. It is modelled using a Bernoulli random variable.  
 
@@ -81,7 +81,7 @@ To generate a single binomial trial of 15 fair coin tosses:
 rbinom(15, prob =0.5, size =1)
 ```
 
-#1.3.2 Success or failure?
+### 1.3.2 Success or failure?
 
 If we only care about the counts and not the order (remember exchangable variables?) then we can change the function call:  
 
@@ -116,7 +116,7 @@ P(X=k) = (n k) p^k x (1-p)^(n-k)
 QUESTION: TO DO LATER
 What is the out put for k=3, p=.667, n=4?  
 
-# 1.3.3 Fishies
+### 1.3.3 Poisson distributions for modern fishies
 
 The Poisson distribution can overtake the binomial distribution if p is small and n is large. The rate parameter of a Poisson distribution is:  
 
@@ -142,10 +142,10 @@ rbinom(1, prob=5e-4, size=10000)
 ```
 ```{r}
 simu = rbinom(n=300000, prob=5e-4,size=10000)
-barplot(table(simu), col="lavender")
+barplot(table(simu), col="salmon")
 ```
 
-#1.3.4 Applying these principles to epitope detection.
+### 1.3.4 Applying these principles to epitope detection.
 
 For conducting an ELISA assay there are known errors involved with:  
 
@@ -167,8 +167,179 @@ barplot(table(simu), col="lavender")
 ```
 
 ```{r}
-data1 <- load("data/e100.RData")
-barplot(e100, ylim = c(0, 7), width = 0.7, xlim = c(-0.5, 100.5),
-  names.arg = seq(along = e100), col ="forestgreen")
+load("/Users/jeremiahyarmie/Desktop/stat7160/data/e100.RData")
+barplot(e100, names.arg = seq(along = e100), col ="forestgreen")
 ```
 
+What's surprising and expected here is a spike of 7 mutations. This leads us to ask:  
+
+* What is the probability of seeing a value as large as 7 if thereare no epitopes present (null hypothesis).
+
+This is the same as 1- the probability of seeing a spike of 6 or less, known as the *cumulative distribution*, which can be found with ppois()
+
+```{r}
+1 - ppois(6, 0.5)
+```
+This can also be run with ppois() with the lower.tail argument being false (if TRUE (default), probabilities are P[X ≤ x], otherwise, P[X > x].)  
+
+```{r}
+epsil <-ppois(6, 0.5, lower.tail = F)
+epsil
+```
+
+This probability is known as epsilon.
+
+*BUT* this is not quite the right approach. What we should **really** be asking is what are the chances that the **maximum** of the Poisson distribution is as large as 7, given there are no epitopes present. This is an *extreme value* analysis using *rank statistics*.
+
+The probability of 7 or higher being the maximum is the same as one minus the *complementary events* happening, having all events being six or less. These 100 events are independent, and so their probabilities can by multiplied.  
+
+By doing this approach the probability drops to 10^-4, 100x or two orders of magnitude larger (and therefore less robust).
+
+We can use a Monte Carlo method to compute our probabilities using a simulation method. Looking at 100000 instances of picking the maximum, we get the following:
+
+```{r}
+maxes = replicate(100000, {
+  max(rpois(100, 0.5))
+})
+table(maxes)
+```
+
+As we see, the total number of maximums picked that were 7 or greater were summed to 15.
+
+```{r}
+mean(maxes >= 7)
+```
+This is about 10^-4.  
+
+But we are lucky in our approach. We known information that might not always be present in our analyses. We know the false positive rate, but that's not always a given. Because of this, this approach is a **top-down, deductive**, *probability or generative modeling approach*.
+
+A **bottom-up approach** centreing *statistical modeling* is covered in chapter 2.  
+
+## 1.4 Multinomial distributions
+
+We must consider *multinomial distributions* when there are **more than two levels**, for example with a DNA sequence: A, T, G, C.
+
+These different levels will have their own corresponding probability values pA, pG, pT, and pC. And their sum (should) equal to 1.  
+
+For example, for a DNA sequence where all four nucleotides are likely, what is the probability of seeing a hexemer sequence of 4 As and two Ts and no Gs or Cs?
+
+```{r}
+dmultinom(c(4, 2, 0, 0), prob = rep(1/4, 4))
+```
+
+### 1.4.1 Simulating for power
+
+An approach for using Monte Carlo for the multinomial: how big of a sample size do I need? 
+
+The term *power* refers to the probability of detecting something if it **is** there, or the *true positive rate*.
+
+Power thresholds of 80% are common, meaning that if the experiment is run many times, about 20% of them will be false negatives (negative result when condition is present).  
+
+If he had an octamer of DNA with equal nucleotide probabilities, we will not always see the presence of all nucleotides in proportion.
+
+```{r}
+pvec = rep(1/4, 4)
+t(rmultinom(1, prob = pvec, size = 8))
+```
+
+So let's increase the length of our DNA oligo to 20 and run 1000 simulations.
+
+```{r}
+obsunder0 = rmultinom(1000, prob = pvec, size = 20)
+dim(obsunder0)
+```
+```{r}
+obsunder0[, 1:11]
+```
+
+While we expect most values in the matrix to be 5 (20/4) we can see some values as large as 8.
+
+How does the generated data differ from what we expected?
+
+```{r}
+stat = function(obsvd, exptd = 20 * pvec) {
+  sum((obsvd - exptd)^2 / exptd)
+}
+stat(obsunder0[, 1])
+```
+So for all of the measurements, we can store this data in a vector S0:
+
+```{r}
+S0 = apply(obsunder0, 2, stat)
+summary(S0)
+```
+
+```{r}
+hist(S0, breaks = 25, col = "blue", main = "")
+```
+and the 95% quantile:  
+
+```{r}
+q95 = quantile(S0, probs = 0.95)
+q95
+```
+
+Which means 5% of the S0 values are larger than 7.6. So we will reject the null hypothesis of fair process nucleotides if the sum of squares is larger than 7.6.  
+
+Now we generate 1000 simulations from an alternative (non-fair nucleotide) process for comparison.
+
+```{r}
+pvecA = c(3/8, 1/4, 3/12, 1/8)
+observed = rmultinom(1000, prob = pvecA, size = 20)
+dim(observed)
+```
+
+```{r}
+apply(observed, 1, mean)
+```
+
+```{r}
+expectedA = pvecA *20
+expectedA
+```
+
+Our question is how often out of our 1000 instances will our test detect that the data departs from the null?
+
+```{r}
+stat(observed[,1])
+```
+
+```{r}
+S1 = apply(observed, 2, stat)
+q95
+```
+```{r}
+sum(S1 > q95)
+```
+```{r}
+power = mean(S1>q95)
+power
+```
+
+What this all means is that:  
+
+- over 1000 simulations, 199 were identified as coming from an alternative distribution  
+- the probability P(reject Ho | Ha) is 0.199  
+- with a sequence length of n=20, we have a power of about 20% to detect the different between the fair generating process and our alternative  
+
+But how can we get the power up to 80% or more?
+
+EXERCISE: DO THIS!!!!
+
+# 1.7 Further Exercises!
+
+### 1.1
+
+### 1.2
+
+### 1.3
+
+### 1.4
+
+### 1.5
+
+### 1.6
+
+### 1.7
+
+### 1.8
