@@ -413,7 +413,7 @@ hivpois</code></pre>
 <p>A simple Bernoulli trial is a two-outcome coin flip: <strong>heads</strong> and <strong>tails</strong>. It is modelled using a Bernoulli random variable.</p>
 <p>To generate a single binomial trial of 15 fair coin tosses:</p>
 <pre class="r"><code>rbinom(15, prob =0.5, size =1)</code></pre>
-<pre><code>##  [1] 0 1 1 0 0 0 1 1 1 1 1 0 1 1 0</code></pre>
+<pre><code>##  [1] 0 1 1 0 0 1 0 0 0 0 0 1 0 1 1</code></pre>
 </div>
 <div id="success-or-failure" class="section level3">
 <h3>1.3.2 Success or failure?</h3>
@@ -589,14 +589,7 @@ power</code></pre>
 <li>with a sequence length of n=20, we have a power of about 20% to detect the different between the fair generating process and our alternative</li>
 </ul>
 <p>But how can we get the power up to 80% or more?</p>
-<p>Step 1: Write a function to generate power.</p>
-<pre class="r"><code>get_power &lt;- function(data, probs, crit_v){
-data_matrix_H0 &lt;- generate_stat_test(data,(1/nrow(data))*colSums(data[])[1])
-data_col_sum &lt;- colSums(data_matrix_H0) 
-power &lt;- mean(data_col_sum &gt; crit_v)
-return(power) 
-}</code></pre>
-<p>Generate 100 matrices, each containing 1000 DNA samples with sizes varying from 1 to 100.</p>
+<p>…</p>
 </div>
 </div>
 </div>
@@ -649,6 +642,21 @@ randompois %&gt;% mean()</code></pre>
 </div>
 <div id="section-7" class="section level3">
 <h3>1.8</h3>
+<p>C. elegans genome nucleotide frequency: Is the mitochondrial sequence of C. elegans consistent with a model of equally likely nucleotides?</p>
+<ol style="list-style-type: lower-alpha">
+<li>Explore the nucleotide frequencies of chromosome M by using a dedicated function in the Biostrings package from Bioconductor.</li>
+</ol>
+<pre class="r"><code>mito_length &lt;- length(BSgenome.Celegans.UCSC.ce2$chrM)
+div_by_mito &lt;- function(x){x / mito_length}
+nt_count &lt;- BSgenome.Celegans.UCSC.ce2$chrM %&gt;% letterFrequency(c(&quot;A&quot;,&quot;C&quot;,&quot;G&quot;,&quot;T&quot;))
+nt_freq &lt;- sapply(nt_count, div_by_mito)
+nt_freq</code></pre>
+<pre><code>##          A          C          G          T 
+## 0.31426707 0.08880673 0.14897782 0.44794838</code></pre>
+<ol start="2" style="list-style-type: lower-alpha">
+<li>Test whether the C. elegans data is consistent with the uniform model (all nucleotide frequencies the same) using a simulation.</li>
+</ol>
+<p>…</p>
 </div>
 </div>
 

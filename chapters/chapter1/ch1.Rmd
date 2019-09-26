@@ -342,18 +342,8 @@ What this all means is that:
 
 But how can we get the power up to 80% or more?
 
-Step 1: Write a function to generate power.
+...
 
-```{r}
-get_power <- function(data, probs, crit_v){
-data_matrix_H0 <- generate_stat_test(data,(1/nrow(data))*colSums(data[])[1])
-data_col_sum <- colSums(data_matrix_H0) 
-power <- mean(data_col_sum > crit_v)
-return(power) 
-}
-```
-
-Generate 100 matrices, each containing 1000 DNA samples with sizes varying from 1 to 100.
 
 # 1.7 Further Exercises!
 
@@ -416,4 +406,21 @@ randompois %>% var()
 ```
 
 ### 1.8
+
+C. elegans genome nucleotide frequency: Is the mitochondrial sequence of C. elegans consistent with a model of equally likely nucleotides? 
+
+a. Explore the nucleotide frequencies of chromosome M by using a dedicated function in the Biostrings package from Bioconductor.
+
+```{r}
+mito_length <- length(BSgenome.Celegans.UCSC.ce2$chrM)
+div_by_mito <- function(x){x / mito_length}
+nt_count <- BSgenome.Celegans.UCSC.ce2$chrM %>% letterFrequency(c("A","C","G","T"))
+nt_freq <- sapply(nt_count, div_by_mito)
+nt_freq
+
+```
+
+b. Test whether the C. elegans data is consistent with the uniform model (all nucleotide frequencies the same) using a simulation.
+
+...
 
