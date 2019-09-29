@@ -6,7 +6,10 @@ output: html_document
 ```{r setup, include=FALSE}
 library(tidyverse)
 library(vcd)
+library(BiocManager)
 library(Biostrings)
+library(seqLogo)
+library(HardyWeinberg)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -327,7 +330,168 @@ The parameter is 30 (10 x (4-1)). There are 10 genes and 4-1 degrees of freedom.
 
 How well the theory and simulation match up can be done using the visual goodness-of-fit tool the *(QQ) plot* or the **quantile-quantile plot**. 
 
-## 2.6.1 
+### 2.6.1 
+
+Compare the simulstat values and 1000 randomly generated chi-squared(thirty) random numbers by displaying them in histograms with 50 bins each.
+
+```{r}
+rchisq(1000, 30) %>% barplot
+
+```
+
+```{r}
+qs = ppoints(100)
+quantile(simulstat, qs)
+quantile(qchisq(qs, df = 30), qs)
+```
+
+Chi-squared is both a test statistic, as well as a distribution in it's own right with parameter nu.
+
+Now we can plot our Q-Q plot. If our two datasets align well, then we should expect a diagonal line (y = x)
+
+```{r}
+qqplot(qchisq(ppoints(B), df = 30), simulstat, main = "",
+  xlab = expression(chi[nu==30]^2), asp = 1, cex = 0.5, pch = 16)
+abline(a = 0, b = 1, col = "red")
+```
+
+Now that we are confident, we can use a chi-squared(30) distribution to compute p.
+
+```{r}
+1 - pchisq(S1, df = 30)
+```
+
+## 2.7 Chargaff's Rule
+
+```{r}
+load("/Users/jeremiahyarmie/Desktop/stat7160/data/ChargaffTable.RData")
+ChargaffTable
+```
+
+A=T and C=G, and we can define the statistic (pg - pc)^2 + (pa - pt)^2
+
+What happens if we look at Chargaff's tables assuming that Chargaff's rule wasn't in place?
+
+```{r}
+statChf = function(x){
+  sum((x[, "C"] - x[, "G"])^2 + (x[, "A"] - x[, "T"])^2)
+}
+chfstat = statChf(ChargaffTable)
+permstat = replicate(100000, {
+     permuted = t(apply(ChargaffTable, 1, sample))
+     colnames(permuted) = colnames(ChargaffTable)
+     statChf(permuted)
+})
+pChf = mean(permstat <= chfstat)
+pChf
+```
+```{r}
+hist(permstat, breaks = 100, main = "", col = "lavender")
+abline(v = chfstat, lwd = 2, col = "red")
+```
+
+### 2.7.1 Two categorical variables
+
+When we are measuring two categorical variables, the cross table is known as a *contingency table*. 
+
+```{r}
+HairEyeColor[,, "Female"]
+```
+
+Looking at colour blindness...
+
+```{r}
+load("/Users/jeremiahyarmie/Desktop/stat7160/data/Deuteranopia.RData")
+Deuteranopia
+```
+
+For two categorical variables, we can run a chi-squared test statistic to see if there is a statistically significant difference between rates of deuteranopia in men and women.
+
+```{r}
+chisq.test(Deuteranopia)
+```
+
+### 2.7.2 Hardy-Weinberg -- Special Multinomial
+
+Recall: p + q = 1 (allele frequencies A or a) and p^2 + 2pq + q^2 = 1 (genotype frequencies AA Aa aA or aa).
+
+```{r}
+data("Mourant")
+Mourant[214:216,]
+```
+
+To plot the log-likelihood for the Tahiti data...
+
+```{r}
+nMM = Mourant$MM[216]
+nMN = Mourant$MN[216]
+nNN = Mourant$NN[216]
+loglik = function(p, q = 1 - p) {
+  2 * nMM * log(p) + nMN * log(2*p*q) + 2 * nNN * log(q)
+}
+xv = seq(0.01, 0.99, by = 0.01)
+yv = loglik(xv)
+plot(x = xv, y = yv, type = "l", lwd = 2,
+     xlab = "p", ylab = "log-likelihood")
+imax = which.max(yv)
+abline(v = xv[imax], h = yv[imax], lwd = 1.5, col = "blue")
+abline(h = yv[imax], lwd = 1.5, col = "purple")
+```
+
+We can compute the genotype frequencies using the af function from the HardyWeinberg package.
+
+```{r}
+phat  =  af(c(nMM, nMN, nNN))
+phat
+```
+
+```{r}
+pMM   =  phat^2
+pMM
+qhat  =  1 - phat
+qhat
+```
+
+```{r}
+pHW = c(MM = phat^2, MN = 2*phat*qhat, NN = qhat^2)
+sum(c(nMM, nMN, nNN)) * pHW
+```
+
+A visual evaluation of the goodness-of-fit of Hardy-Weinberg can be called using HWTernaryPlot.
+
+```{r}
+pops = c(1, 69, 128, 148, 192)
+genotypeFrequencies = as.matrix(Mourant[, c("MM", "MN", "NN")])
+HWTernaryPlot(genotypeFrequencies[pops, ],
+        markerlab = Mourant$Country[pops],
+        alpha = 0.0001, curvecols = c("red", rep("purple", 4)),
+        mcex = 0.75, vertex.cex = 1)
+```
+
+How to read: the Hardy-Weinberg model is the red curve, the acceptance region is between the two purple lines. 
+
+### 2.7.3 Sequence Motifs
+
+Let's look at the position weight matrix (PWM) or position-specific scoring matrix (PSSM), of the Kozak motif by looking at the sequence logo graphic.
+
+```{r}
+load("/Users/jeremiahyarmie/Desktop/stat7160/data/kozak.RData")
+kozak
+```
+
+```{r}
+pwm = makePWM(kozak)
+seqLogo(pwm, ic.scale = FALSE)
+```
+
+## 2.9 Markov Chains and Bayesian Thinking
+
+will finish during the morning of Mon Sept 30
+
+
+
+
+
 
 # Exercises
 
