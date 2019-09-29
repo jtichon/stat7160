@@ -5,8 +5,374 @@ output: html_document
 
 ```{r setup, include=FALSE}
 library(tidyverse)
+library(vcd)
+library(Biostrings)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
 # Chapter 2 - Statistical Modeling
+
+Statistical modelling is required when, unlike in chapter 1, the models and parameters and *unknown*. So to remedy that, these models and values are instead **estimated** using the data available to the statistician.  
+
+The direction of information is from the **data upwards** through a process known as inference.  
+
+## 2.1 Goals and Objectives
+
+At the end of the chapter we will hopefully have a better idea about:  
+
+-estimating models
+-conducting a maximum likelihood simulation experiment 
+-applying Bayesian statistics
+-making Markov chain models  
+
+*Parameters* 
+-lambda is the single parameter that defines a Poisson distribution
+-mu is often used to represent the mean of the normal 
+-theta is used to represent the total paramaters of a given distribution, for example in bionomial: theta = (n,p)
+
+## 2.3 Statistical Models
+
+In order to carry out a modelling procedure, we must first have the following:  
+- a reasonable probability distribution
+  - discerete variables could be looked through binomial multinomial, or Poisson lenses
+  - continuous variables could be looked at through the lens of the normal
+
+```{r}
+load("/Users/jeremiahyarmie/Desktop/stat7160/data/e100.RData")
+e99 = e100[-which.max(e100)]
+```
+
+A visual identification of goodness-of-fit of your data to a candidate model can be done by various plotting strategies. For discrete data a barplot works great. 
+
+Note: e99 is e100 with the outlier removed.
+
+```{r}
+barplot(table(e99), space = 0.8, col = "chartreuse4")
+```
+
+But for a more granular approach a *rootogram* can be used, which overlays theoretical values to the counts of a barplot.
+
+```{r}
+gf1 = goodfit( e99, "poisson")
+rootogram(gf1, xlab = "", rect_gp = gpar(fill = "chartreuse4"))
+```
+
+Exercise: Generate 100 Poisson distributed numbers with lambda = 0.5 and draw their rootogram.
+
+```{r}
+poispointfive <- rpois(100, 0.5)
+gf2 = goodfit(poispointfive, "poisson")
+rootogram(gf1, xlab = "", rect_gp = gpar(fill = "chartreuse4"))
+```
+
+It seems likely that e99 follows a Poisson distribution. We'll now need to estimate lambda using the data to give us lambda_hat. This is done by chosing the value of lambda_hat that makes it most likely for us to see the data that we see, the *maximum likelihood estimator*.
+
+We return to using e100, the presence of the outlier will skew our MLE slightly. If our conclusions are still statistically significant even when including such outliers, we know that our approach is robust. We are being conservative in doing so.
+
+### Estimating the Poisson distribution  
+
+First we tally our observations:
+
+```{r}
+table(e100)
+```
+
+Now we have to try and match this distribution using rpois.
+
+```{r}
+rpois(100, 3) %>%  table
+```
+
+Lambda of 3 gives us too many 2s, 3s, and more compared to our data.
+
+```{r}
+rpois(100, 5) %>%  table
+```
+
+We hardly see any 0s or 1s, 5 is much too high.
+
+```{r}
+rpois(100, 1) %>%  table
+```
+
+Lambda = 1 is pretty close...  
+
+But this brute force trial-and-error system isn't ideal. Instead, we can use *likelihood functions* to find the closest approximation. This is done by calculating the probability of seeing **exactly** our data given the Poisson distribution is a value **m**.
+
+P(58x0, 34x1, 7x2, 1x7 | Lambda is m) = P(0)^58 x P(1)^34 x P(2)^7 x P(7)^1
+
+```{r}
+prod(dpois(c(0, 1, 2, 7), lambda = 3) ^ (c(58, 34, 7, 1)))
+```
+
+Okay so... lambda = 5.
+
+```{r}
+prod(dpois(c(0, 1, 2, 7), lambda = 5) ^ (c(58, 34, 7, 1)))
+```
+
+That's worse and unlikely.
+
+```{r}
+prod(dpois(c(0, 1, 2, 7), lambda = 1) ^ (c(58, 34, 7, 1)))
+```
+
+That's better...
+
+```{r}
+prod(dpois(c(0, 1, 2, 7), lambda = 0.4) ^ (c(58, 34, 7, 1)))
+```
+
+Looking even better...
+
+```{r}
+prod(dpois(c(0, 1, 2, 7), lambda = 0.5) ^ (c(58, 34, 7, 1)))
+```
+
+
+It's standard to take the logarithm, when the logarithm is at its max, so too should be the probability. 
+
+
+```{r}
+loglikelihood  =  function(lambda, data = e100) {
+  sum(log(dpois(data, lambda)))
+}
+```
+
+loglikelihood is function that lets us plug in different values for lambda. Now we can call it using a spread of lambda values.
+
+```{r}
+plot_pois <- function(){ #making this a function because I'm lazy
+
+lambdas = seq(0.05, 0.95, length = 100) #make a sequence of lambda inputs from 0.05-0.95
+loglik = vapply(lambdas, loglikelihood, numeric(1)) #vapply iteratively applies the function in the second argument to all items in the vector in the first argument, and produces output in the type of the third argument
+plot(lambdas, loglik, type = "l", col = "red", ylab = "", lwd = 2,
+     xlab = expression(lambda))
+}
+plot_pois()
+```
+
+So our function has a maximum around 0.5 (as we already know).
+
+Let's see that:
+
+```{r}
+plot_pois()
+m0 = mean(e100)
+abline(v = m0, col = "blue", lwd = 2)
+abline(h = loglikelihood(m0), col = "purple", lwd = 2)
+```
+
+And what is the mean?
+
+```{r}
+m0
+```
+
+Interesting! So the presence of the outlier inflated the value of lambda by 0.05! 
+
+Apparently there was a way to do this all along in R... and we've already called the function before! goodfit
+
+```{r}
+gf = goodfit(e100, "poisson")
+names(gf) #this will show us all of the outputs of goodfit()
+```
+
+*par* contains the values of the fitted parameters, in this case lambda. The other information available includes:
+  - observed - observed frequencies
+  - count - corresponding counts
+  - fitted - expected frequencies given fitted maximum likelihood
+  - type - indicates the distribution fitted
+  - method - fitting method: ML, MinChisq, or fixed
+  - df - degrees of freedom
+  
+```{r}
+gf$observed
+gf$count
+gf$fitted
+gf$type
+gf$method
+gf$df
+```
+
+But what we care about is par...
+
+```{r}
+gf$par
+```
+
+## 2.4 Applying Maximum Likelihood approaches to Binomial Data
+
+The following example looks at testing n = 120 male individuals for red-green colourblindness.
+
+```{r}
+cb <- c(1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0)
+table(cb)
+```
+
+If you had to guess the value of p^, you would probably say 1/12. Which is also the MLE.
+
+Let's plot various values of p^ and see what the visualization looks like.
+
+```{r}
+probs  =  seq(0, 0.3, by = 0.005)
+likelihood = dbinom(sum(cb), prob = probs, size = length(cb))
+plot(probs, likelihood, pch = 16, xlab = "probability of success",
+       ylab = "likelihood", cex=0.6)
+probs[which.max(likelihood)]
+```
+And we get 0.085, which is very close to 1/12.
+
+## 2.5 Exploring Multinomial with Nucleotide Data
+
+```{r}
+staph <- readDNAStringSet("/Users/jeremiahyarmie/Desktop/stat7160/data/staphsequence.ffn.txt", "fasta")
+```
+
+Using [n] we can look at the nth gene in our DNA sequence:
+
+```{r}
+staph[1]
+```
+And we can get a frequency count:
+
+```{r}
+staph_nt_count <- letterFrequency(staph[[1]], letters = "ACGT", OR = 0)
+#[[i]] extracts the sequence of the i-th gene as a DNAString, as opposed to the pair of single brackets [i], which return a DNAStringSet with just a single DNAString in it
+```
+
+```{r}
+gene1length <- length(staph[[1]])
+divnt <- function(x){x / gene1length}
+nt_freq <- sapply(staph_nt_count, divnt)
+nt_freq
+```
+
+The nulceotide distribution does not appear to be following a 1/4 * 1/4 * 1/4 * 1/4 pattern.
+
+We can scan the first ten genes:
+
+```{r}
+letterFrq = vapply(staph, letterFrequency, FUN.VALUE = numeric(4),
+         letters = "ACGT", OR = 0)
+colnames(letterFrq) = paste0("gene", seq(along = staph))
+tab10 = letterFrq[, 1:10]
+computeProportions = function(x) { x/sum(x) }
+prop10 = apply(tab10, 2, computeProportions)
+round(prop10, digits = 2)
+```
+
+It does look rather consistent...
+
+Let p0 be a vector showing the multinomail means for all nucleotides in the first ten genes.
+
+```{r}
+p0 = rowMeans(prop10)
+p0
+```
+
+We can then use a Monte Carlo simulation to evaluate deviations from these probabilities.
+
+First we need the nucleotide sums for all ten genes (or the gene lengths).
+
+```{r}
+cs = colSums(tab10)
+cs
+```
+
+Then we can multiply these counts with the p0 mean probabilities to get our expected counts of each nucleotide.
+
+```{r}
+expectedtab10 = outer(p0, cs, FUN = "*")
+round(expectedtab10)
+```
+
+I DON'T REALLY GET THIS NEXT PART
+
+```{r}
+randomtab10 = sapply(cs, function(s) { rmultinom(1, s, p0) } )
+all(colSums(randomtab10) == cs)
+```
+
+```{r}
+stat = function(obsvd, exptd = 20 * pvec) {
+   sum((obsvd - exptd)^2 / exptd)
+}
+B = 1000
+simulstat = replicate(B, {
+  randomtab10 = sapply(cs, function(s) { rmultinom(1, s, p0) })
+  stat(randomtab10, expectedtab10)
+})
+S1 = stat(tab10, expectedtab10)
+sum(simulstat >= S1)
+```
+
+```{r}
+hist(simulstat, col = "lavender", breaks = seq(0, 75, length.out=50))
+abline(v = S1, col = "red")
+abline(v = quantile(simulstat, probs = c(0.95, 0.99)),
+       col = c("darkgreen", "blue"), lty = 2)
+```
+
+The probability of seeing a value as large as S1=70.1 is very small under the null model, happening 0 times in our 1000 simulations. Conclusion: the ten genes do not seem to come from the same multinomial model.
+
+## 2.6 Chi-Squared Distribution
+
+So what we previously did wasn't entirely pointless... but it was a long way around just using a test statistic.
+
+The theoretical distribution of the simulstat statistic is called the *chi-squared distribution*.
+
+The parameter is 30 (10 x (4-1)). There are 10 genes and 4-1 degrees of freedom.
+
+How well the theory and simulation match up can be done using the visual goodness-of-fit tool the *(QQ) plot* or the **quantile-quantile plot**. 
+
+## 2.6.1 
+
+# Exercises
+
+## 2.1 Generate 1,000 random 0/1 variables that model mutations occurring along a 1,000 long gene sequence. These occur independently at a rate of e-4 each. Then sum the 1,000 positions to count how many mutations in sequences of length 1,000.
+
+Find the correct distribution for these mutation sums using a goodness of fit test and make a plot to visualize the quality of the fit.
+
+## 2.2 Make a function that generates n random uniform numbers between 0 and 7 and returns their maximum.
+
+Execute the function for n=25
+Repeat this procedure B = 100 times.
+Plot the distribution of these maxima.
+What is the maximum likelihood estimate of the maximum of a sample of size 25?
+Can you find a theoretical justification and the true maximum theta?
+
+
+## 2.3 
+
+a) Explore the data mtb using table to tabulate the AmAcid and Codon variables.
+b) How was the PerThous variable created?
+c) Write an R function that you can apply to the table to find which of the amino acids shows the strongest codon bias, i.e., the strongest departure from uniform distribution among its possible spellings.
+
+```{r}
+mtb = read.table("../data/M_tuberculosis.txt", header = TRUE)
+head(mtb, n = 4)
+```
+
+```{r}
+pro  =  mtb[ mtb$AmAcid == "Pro", "Number"]
+pro/sum(pro)
+```
+
+## 2.4 Display GC content in a running window along the sequence of Staphylococcus aureus. 
+
+a) Look at the complete staph object and then display the first three sequences in the set.
+b) Find the GC content in tsequence windows of width 100.
+c) Display the GC content in a sliding window as a fraction.
+d) How could we visualize the overall trends of these proportions along the sequence?
+
+```{r}
+staph = readDNAStringSet("/Users/jeremiahyarmie/Desktop/stat7160/data/staphsequence.ffn.txt", "fasta")
+```
+
+## 2.5 Redo a figure similar to Figure 2.17, but include two other distributions: the uniform (which is B(1,1)) and the B(1/2, 1/2).
+
+
+
+## 2.6 Re-analyse the data from Section 2.9.2 using a sketched prior.
