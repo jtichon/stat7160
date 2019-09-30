@@ -10,6 +10,11 @@ library(BiocManager)
 library(Biostrings)
 library(seqLogo)
 library(HardyWeinberg)
+library(BSgenome)
+library(Renext)
+library(Gviz)
+library("BSgenome.Ecoli.NCBI.20080805")
+library("BSgenome.Hsapiens.UCSC.hg19")
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -43,7 +48,7 @@ In order to carry out a modelling procedure, we must first have the following:
 
 ```{r}
 load("/Users/jeremiahyarmie/Desktop/stat7160/data/e100.RData")
-e99 = e100[-which.max(e100)]
+e99 = e100[-which.max(e100)] #remove the outlier
 ```
 
 A visual identification of goodness-of-fit of your data to a candidate model can be done by various plotting strategies. For discrete data a barplot works great. 
@@ -486,10 +491,247 @@ seqLogo(pwm, ic.scale = FALSE)
 
 ## 2.9 Markov Chains and Bayesian Thinking
 
-will finish during the morning of Mon Sept 30
+Bayesian statistics centre the importance of *prior knowledge* in the statistical pipeline. This prior knowledge could help inform the value of estimated parameters. Bayesian statistics allows us to **update** or **shift** our knowledge about our estimated parameters based on other information.
+
+The paradigm considers a *prior* and *posterior* distributions, the latter being formed after we collect and interperet other information.
+
+If our prior is P(x) and we have some other data d,then posterior would be P(x | d) and their relationship can be described by the following:
+
+P(x | d) = P(d | x) x P(x) / P(d)
+
+### 2.9.1 Haplotypes
+
+A haplotype is a collection of physically close alleles that are often inhereted together (are genetically linked)
+
+The goal is to estimate the proportion of a Y-haplotype containing short tandem repeats.
+
+```{r}
+haplo6 = read.table("/Users/jeremiahyarmie/Desktop/stat7160/data/haplotype6.txt", header = T)
+haplo6
+```
+
+Our goal is to find the proportion, theta, of the haplotype of interest, Y, in a population of interest.
+
+### 2.9.2 Simulation
+
+When we are looking at a parameter that is a proportion or probability between 0 and 1, it is convenient to use the *beta distribution*. If our prior is the belief that theta is beta and observe data in the form of n binomial trials, then our posterior theta have an updated beta distribution.
+
+The distribution of Y due to a different distribution of theta is known as the *marginal distribution* of Y
+
+```{r}
+rtheta = rbeta(100000, 50, 350)
+y = vapply(rtheta, function(th) {
+  rbinom(1, prob=th, size=300)
+}, numeric(1))
+hist(y, breaks =50, col ="orange", main= "", xlab = "")
+```
+
+To calculate the posterior of theta, we fous on outcomes where Y was 40.
+
+```{r}
+thetaPostEmp = rtheta[ y == 40 ]
+hist(thetaPostEmp, breaks = 40, col = "chartreuse4", main = "", probability = T, xlab = expression("posterior"~theta)) ## note the rest of this code didn't work for me because thetas doesn't exist
+```
+
+The mean of which is:
+
+```{r}
+mean(thetaPostEmp)
+```
+
+We can use Monte Carlo simulation to estimate the theta parameter of the theoretical.
+
+```{r}
+thetaPostMC = rbeta(n=1e6, 90, 610)
+mean(thetaPostMC)
+```
+
+And the theoretical and data posteriors can be compared using a Q-Q plot
+
+```{r}
+qqplot(thetaPostEmp, thetaPostMC, type = "l", asp =1)
+abline(a =0, b=1, col="blue")
+```
+
+So the emperical data-driven posterior theta is also a beta.
+
+??? I DIDN'T GET THE END OF THIS SECTION 
+
+JILL WILL DO
+
+## 2.10 Nucleotide patterns
+
+Exploring teh occurance of the Shine-Dalgarno sequence AGGAGGT motif in **Escherichia coli** K12-DH10B
+
+```{r}
+Ecoli
+shineDalgarno = "AGGAGGT"
+ecoli = Ecoli$NC_010473
+```
+
+We can count the SD instances in windows of 50000 bp using countPattern
+
+```{r}
+window = 50000
+starts = seq(1, length(ecoli) - window, by = window)
+ends = starts + window - 1
+numMatches = vapply(seq_along(starts), function(i){
+  countPattern(shineDalgarno, ecoli[starts[i]:ends[i]], max.mismatch=0)
+}, numeric(1))
+table(numMatches)
+```
+
+The occurance of sequence motifs along a sliding window most likely falls under a Poisson distribution.
+
+```{r}
+gf = goodfit(numMatches, "poisson")
+summary(gf)
+```
+
+```{r}
+distplot(numMatches, type="poisson")
+```
+
+The matches can be explored using matchPattern
+
+```{r}
+sdMatches = matchPattern(shineDalgarno, ecoli, max.mismatch = 0)
+sdMatches
+```
+
+These are all 65 instances of the SD sequence. And now the distances between them...
+
+```{r}
+betweenmotifs = gaps(sdMatches)
+betweenmotifs
+```
+
+So there are 65 SD sequences interrupting 66 regions of DNA. If the motif were occuring at random locations, the gap lengths would follow an exponential distribution.
+
+```{r}
+expplot(width(betweenmotifs), rate = 1/mean(width(betweenmotifs)), labels = "fit")
+```
+
+While the points follow the line for a bit, they deviate for the largest values, meaning they're less likely to be random / from an exponential distribution. Is this because of operons? Or perhaps phages/plasmids?
+
+### 2.10.1 CpG islands and the chances of seeing dinucleotide sequences
+
+CpG islands are regions of higher C and G content used in epigenetic regulation.
+
+Let's look at human chromosome 8
+
+```{r}
+chr8 = Hsapiens$chr8
+CpGtab = read.table("~/Desktop/stat7160/data/model-based-cpg-islands-hg19.txt", header = T)
+nrow(CpGtab)
+head(CpGtab)
+```
+
+```{r}
+irCpG = with(dplyr::filter(CpGtab, chr == "chr8"), IRanges(start = start, end = end))
+
+#filter subsets CpG tab to only include chromosome 8
+
+grCpG = GRanges(ranges = irCpG, seqnames = "chr8", strand = "+")
+genome(grCpG) = "hg19"
+ideo = IdeogramTrack(genome = "hg19", chromosome = "chr8")
+plotTracks(
+  list(GenomeAxisTrack(),
+       AnnotationTrack(grCpG, name = "CpG"), ideo),
+  from = 2200000, to = 5800000, shape = "box", fill = "#006400", stacking = "dense"
+)
+```
+
+We can then compute dinucleotide transition counts in both CpG and non-CpG regions.
+
+```{r}
+CGIview = Views(unmasked(Hsapiens$chr8), irCpG)
+NonCGIview = Views(unmasked(Hsapiens$chr8), gaps(irCpG))
+seqCGI = as(CGIview, "DNAStringSet")
+seqNonCGI = as(NonCGIview, "DNAStringSet")
+dinucCpG = sapply(seqCGI, dinucleotideFrequency)
+dinucNonCpG = sapply(seqNonCGI, dinucleotideFrequency)
+dinucNonCpG[,1]
+```
+
+```{r}
+NonICounts = rowSums(dinucNonCpG)
+IslCounts = rowSums(dinucCpG)
+TI = matrix(IslCounts, ncol=4, byrow = T)
+TnI = matrix(NonICounts, ncol=4, byrow =T)
+dimnames(TI) = dimnames(TnI) = list(c("A", "C", "G", "T"), c("A", "C", "G", "T"))
+MI = TI / rowSums(TI)
+MI # a matrix of dinucleotide transition probabilities in CpG islands
+```
+```{r}
+MN = TnI / rowSums(TnI)
+MN # a matrix of dinucleotide transition probabilities not in CpG islands
+```
+
+Do base frequencies differ in and out of CpG islands?
+
+```{r}
+freqIsl = alphabetFrequency(seqCGI, baseOnly = T, collapse = T)[1:4]
+freqIsl / sum(freqIsl)
+```
 
 
+```{r}
+freqNon = alphabetFrequency(seqNonCGI, baseOnly = T, collapse = T)[1:4]
+freqNon / sum(freqNon)
+```
 
+Given a sequence, we can determine the probability of it being within a CpG island or not using an *odds ratio* score.
+
+??I DONT GET THIS PART BELOW
+
+JER WILL DO
+
+```{r}
+alpha = log((freqIsl/sum(freqIsl)) / (freqNon/sum(freqNon)))
+beta  = log(MI / MN)
+```
+
+```{r}
+x = "ACGTTATACTACG"
+scorefun = function(x) {
+  s = unlist(strsplit(x, ""))
+  score = alpha[s[1]]
+  if (length(s) >= 2)
+    for (j in 2:length(s))
+      score = score + beta[s[j-1], s[j]]
+  score
+}
+scorefun(x)
+```
+
+```{r}
+generateRandomScores = function(s, len = 100, B = 1000) {
+  alphFreq = alphabetFrequency(s)
+  isGoodSeq = rowSums(alphFreq[, 5:ncol(alphFreq)]) == 0
+  s = s[isGoodSeq]
+  slen = sapply(s, length)
+  prob = pmax(slen - len, 0)
+  prob = prob / sum(prob)
+  idx  = sample(length(s), B, replace = TRUE, prob = prob)
+  ssmp = s[idx]
+  start = sapply(ssmp, function(x) sample(length(x) - len, 1))
+  scores = sapply(seq_len(B), function(i)
+    scorefun(as.character(ssmp[[i]][start[i]+(1:len)]))
+  )
+  scores / len
+}
+scoresCGI    = generateRandomScores(seqCGI)
+scoresNonCGI = generateRandomScores(seqNonCGI)
+```
+
+```{r}
+br = seq(-0.8, 0.8, length.out = 50)
+h1 = hist(scoresCGI,    breaks = br, plot = FALSE)
+h2 = hist(scoresNonCGI, breaks = br, plot = FALSE)
+plot(h1, col = rgb(0, 0, 1, 1/4), xlim = c(-0.5, 0.5), ylim=c(0,120))
+plot(h2, col = rgb(1, 0, 0, 1/4), add = TRUE)
+```
 
 
 
@@ -515,13 +757,27 @@ b) How was the PerThous variable created?
 c) Write an R function that you can apply to the table to find which of the amino acids shows the strongest codon bias, i.e., the strongest departure from uniform distribution among its possible spellings.
 
 ```{r}
-mtb = read.table("../data/M_tuberculosis.txt", header = TRUE)
+mtb = read.table("/Users/jeremiahyarmie/Desktop/stat7160/data/M_tuberculosis.txt", header = TRUE)
 head(mtb, n = 4)
 ```
 
 ```{r}
-pro  =  mtb[ mtb$AmAcid == "Pro", "Number"]
-pro/sum(pro)
+#pro  =  mtb[ mtb$AmAcid == "Pro", "Number"]
+#pro/sum(pro)
+
+```
+
+```{r}
+mtb$AmAcid %>% table
+
+```
+
+```{r}
+mtb$Codon %>% table
+```
+
+```{r}
+mtb$Codon %>% table %>%  sum
 ```
 
 ## 2.4 Display GC content in a running window along the sequence of Staphylococcus aureus. 
