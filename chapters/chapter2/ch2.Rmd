@@ -5,6 +5,8 @@ output: html_document
 
 ```{r setup, include=FALSE}
 library(tidyverse)
+library(here)
+library(evd)
 library(vcd)
 library(BiocManager)
 library(Biostrings)
@@ -13,6 +15,7 @@ library(HardyWeinberg)
 library(BSgenome)
 library(Renext)
 library(Gviz)
+library(ggfortify)
 library("BSgenome.Ecoli.NCBI.20080805")
 library("BSgenome.Hsapiens.UCSC.hg19")
 knitr::opts_chunk$set(echo = TRUE)
@@ -555,9 +558,7 @@ abline(a =0, b=1, col="blue")
 
 So the emperical data-driven posterior theta is also a beta.
 
-??? I DIDN'T GET THE END OF THIS SECTION 
 
-JILL WILL DO
 
 ## 2.10 Nucleotide patterns
 
@@ -683,10 +684,6 @@ freqNon / sum(freqNon)
 
 Given a sequence, we can determine the probability of it being within a CpG island or not using an *odds ratio* score.
 
-??I DONT GET THIS PART BELOW
-
-JER WILL DO
-
 ```{r}
 alpha = log((freqIsl/sum(freqIsl)) / (freqNon/sum(freqNon)))
 beta  = log(MI / MN)
@@ -737,39 +734,75 @@ plot(h2, col = rgb(1, 0, 0, 1/4), add = TRUE)
 
 # Exercises
 
-## 2.1 Generate 1,000 random 0/1 variables that model mutations occurring along a 1,000 long gene sequence. These occur independently at a rate of e-4 each. Then sum the 1,000 positions to count how many mutations in sequences of length 1,000.
-
+## 2.1 
+Generate 1,000 random 0/1 variables that model mutations occurring along a 1,000 long gene sequence. 
+These occur independently at a rate of e-4 each. Then sum the 1,000 positions to count how many mutations in sequences of length 1,000.
 Find the correct distribution for these mutation sums using a goodness of fit test and make a plot to visualize the quality of the fit.
+
+```{r}
+set.seed(121212)
+thousandmut <- rbinom(1000, 1000, 0.00001)
+thousandmut
+thousandmut %>% sum
+```
+
+```{r}
+gofit1 = goodfit(thousandmut, "binomial")
+rootogram(gofit1, xlab = "", rect_gp = gpar(fill = "salmon"))
+```
+
+```{r}
+gofit2 = goodfit(thousandmut, "poisson")
+rootogram(gofit2, xlab = "", rect_gp = gpar(fill = "salmon"))
+```
+
+```{r}
+gofit3 = goodfit(thousandmut, "nbinom")
+rootogram(gofit3, xlab = "", rect_gp = gpar(fill = "salmon"))
+```
 
 ## 2.2 Make a function that generates n random uniform numbers between 0 and 7 and returns their maximum.
 
+```{r}
+runiftoseven <- function(n){
+  runif(n, min=0, max=7) %>% which.max
+}
+```
+
 Execute the function for n=25
-Repeat this procedure B = 100 times.
-Plot the distribution of these maxima.
+
+```{r}
+set.seed(122)
+runiftoseven(25)
+```
+
+Repeat this procedure B = 100 times. Plot the distribution of these maxima.
+
+```{r}
+set.seed(121213)
+hundredrun <- replicate(100, runiftoseven(25)) %>% histogram
+meanhundred = mean(hundredrun)
+
+```
+
 What is the maximum likelihood estimate of the maximum of a sample of size 25?
+12?
+
 Can you find a theoretical justification and the true maximum theta?
+???
 
 
 ## 2.3 
-
-a) Explore the data mtb using table to tabulate the AmAcid and Codon variables.
-b) How was the PerThous variable created?
-c) Write an R function that you can apply to the table to find which of the amino acids shows the strongest codon bias, i.e., the strongest departure from uniform distribution among its possible spellings.
 
 ```{r}
 mtb = read.table("/Users/jeremiahyarmie/Desktop/stat7160/data/M_tuberculosis.txt", header = TRUE)
 head(mtb, n = 4)
 ```
 
-```{r}
-#pro  =  mtb[ mtb$AmAcid == "Pro", "Number"]
-#pro/sum(pro)
-
-```
+a) Explore the data mtb using table to tabulate the AmAcid and Codon variables.
 
 ```{r}
 mtb$AmAcid %>% table
-
 ```
 
 ```{r}
@@ -780,19 +813,154 @@ mtb$Codon %>% table
 mtb$Codon %>% table %>%  sum
 ```
 
+b) How was the PerThous variable created?
+
+```{r}
+mtb
+```
+
+```{r}
+mtb$Number / mtb$PerThous
+```
+
+```{r}
+mtb$Number / 1344
+```
+
+c) Write an R function that you can apply to the table to find which of the amino acids shows the strongest codon bias, i.e., the strongest departure from uniform distribution among its possible spellings.
+
+```{r}
+#choose which AA i.e. "Pro"
+
+codonbias <- function(aa){
+  #choose aa
+  aa_table <- mtb %>% as_tibble %>% filter(mtb$AmAcid == aa)
+  #aa_table
+  row_max <- which.max(aa_table$Number)
+  #row_max
+  aa_table$Codon[row_max]
+}
+
+codonbias("Leu")
+```
+
+
+
 ## 2.4 Display GC content in a running window along the sequence of Staphylococcus aureus. 
-
-a) Look at the complete staph object and then display the first three sequences in the set.
-b) Find the GC content in tsequence windows of width 100.
-c) Display the GC content in a sliding window as a fraction.
-d) How could we visualize the overall trends of these proportions along the sequence?
-
 ```{r}
 staph = readDNAStringSet("/Users/jeremiahyarmie/Desktop/stat7160/data/staphsequence.ffn.txt", "fasta")
 ```
 
+a) Look at the complete staph object and then display the first three sequences in the set.
+
+```{r}
+staph
+```
+
+```{r}
+staph[1]
+```
+
+```{r}
+staph[2]
+```
+
+```{r}
+staph[3]
+```
+
+b) Find the GC content in sequence windows of width 100.
+
+```{r}
+letterFrequencyInSlidingView(staph[[1]], view.width = 100, letters = "GC")
+```
+
+c) Display the GC content in a sliding window as a fraction.
+
+```{r}
+letterFrequencyInSlidingView(staph[[1]], view.width = 1000, letters = "GC") / 1000
+```
+
+d) How could we visualize the overall trends of these proportions along the sequence?
+
+```{r}
+
+```
+
+
 ## 2.5 Redo a figure similar to Figure 2.17, but include two other distributions: the uniform (which is B(1,1)) and the B(1/2, 1/2).
 
+```{r}
 
+x_ <- seq(0,1.05, length=250)
+alpha_ <- c(0.5, 1, 10, 20, 50)
+beta_ <- c(0.5, 1, 30, 60, 150)
+n_ <- 1000
+
+#Create an initial graph with 1 distribution
+plottwofive <- ggdistribution(dbeta, x_, shape1=0.5, shape2=0.5, n=n_, 
+                colour='blue', 
+                 fill='blue')
+
+#add next
+plottwofive <- ggdistribution(dbeta, x_, shape1=1, shape2=1, n=n_, 
+                colour='green', 
+                 fill='green', p=plottwofive)
+
+#add next
+plottwofive <- ggdistribution(dbeta, x_, shape1=10, shape2=30, n=n_, 
+                colour='red', 
+                 fill='red', p=plottwofive)
+
+#add next
+plottwofive <- ggdistribution(dbeta, x_, shape1=20, shape2=60, n=n_, 
+                colour='yellow', 
+                 fill='yellow', p=plottwofive)
+
+#add next
+plottwofive <- ggdistribution(dbeta, x_, shape1=50, shape2=150, n=n_, 
+                colour='purple', 
+                 fill='purple', p=plottwofive)
+
+# View p3
+plottwofive
+
+
+```
 
 ## 2.6 Re-analyse the data from Section 2.9.2 using a sketched prior.
+
+```{r}
+rtheta = rbeta(100000, 40, 120) #we're using 40 and 120 for alpha and beta
+y = vapply(rtheta, function(th) {
+  rbinom(1, prob=th, size=300)
+}, numeric(1))
+hist(y, breaks =50, col ="pink", main= "", xlab = "")
+```
+
+To calculate the posterior of theta, we focus on outcomes where Y was around 70
+
+```{r}
+thetaPostEmp = rtheta[ y == 70 ]
+hist(thetaPostEmp, breaks = 40, col = "slateblue", main = "", probability = T, xlab = expression("posterior"~theta))
+```
+
+The mean of which is:
+
+```{r}
+mean(thetaPostEmp)
+```
+
+We can use Monte Carlo simulation to estimate the theta parameter of the theoretical.
+
+```{r}
+thetaPostMC = rbeta(n=1e6, 40, 120)
+mean(thetaPostMC)
+```
+
+And the theoretical and data posteriors can be compared using a Q-Q plot
+
+```{r}
+qqplot(thetaPostMC, thetaPostEmp, type = "l", asp =1)
+abline(a =0, b=1, col="skyblue")
+```
