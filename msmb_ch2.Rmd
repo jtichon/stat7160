@@ -328,7 +328,7 @@ all(colSums(randomtab10) == cs) #does this show that the column sums in randomta
 
 Repeat this simulation *B* = 1000 times.  For each table, we compute the test statistic and store the results in the vector simulstat; these values constitue our NULL distribution.
 
-```{r}
+```{r, results='hide'}
 set.seed(234272362)
 pvec = rep(1/4, 4) # We didn't previously defined pvec for this chapter; what happens when it's not defined?
 stat = function(obsvd, exptd = 20 * pvec) {
@@ -592,6 +592,9 @@ HWTernaryPlot(genotypeFrequencies[pops, ],
         markerlab = Mourant$Country[pops],
         alpha = 0.0001, curvecols = c("red", rep("purple", 4)),
         mcex = 0.75, vertex.cex = 1)
+```
+
+```{r, results='hide'}
 ?HWChisq()
 HWChisqMat(genotypeFrequencies) %>% table()
 ```
@@ -971,7 +974,7 @@ plot(h2, col = rgb(1, 0, 0, 1/4), add = TRUE)
 
 # Exercises
 
-## 2.1 Generate 1,000 random 0/1 variables that model mutations occurring along a 1,000 long gene sequence. These occur independently at a rate of e-4 each. Then sum the 1,000 positions to count how many mutations in sequences of length 1,000.
+### 2.1 Generate 1,000 random 0/1 variables that model mutations occurring along a 1,000 long gene sequence. These occur independently at a rate of e-4 each. Then sum the 1,000 positions to count how many mutations in sequences of length 1,000.
 
 ```{r}
 set.seed(123456789)
@@ -983,7 +986,7 @@ gf
 rootogram(gf, xlab = "", rect_gp = gpar(fill = "darkgrey"))
 ```
 
-## 2.2 Make a function that generates n random uniform numbers between 0 and 7 and returns their maximum.  Then execute the function for n = 25 and repeat the procedure B = 100 times.  Plot the distribution.
+### 2.2 Make a function that generates n random uniform numbers between 0 and 7 and returns their maximum.  Then execute the function for n = 25 and repeat the procedure B = 100 times.  Plot the distribution.
 
 ```{r}
 RN = function(n) {
@@ -1000,7 +1003,7 @@ What is the maximum likelihood estimate of the maximum of a sample of size 25?
 ...Not entirely sure how to do this, but seems similar to the example on page 23?
 
 ```{r}
-m2.2 = mean(Fig)
+m2.2 = mean(fig2.2)
 m2.2
 ?goodfit
 ```
@@ -1010,7 +1013,7 @@ Can you find a theoretical justification and the true maximum theta?
 ...Not too sure
 
 
-## Exercise 2.3
+### Exercise 2.3
 
 Load the Mtb data
 
@@ -1045,10 +1048,48 @@ The variable was created....by dividing by 1344; however, not exactly sure of th
 c) Write an R function that you can apply to the table to find which of the amino acids shows the strongest codon bias, i.e., the strongest departure from uniform distribution among its possible spellings.
 
 ```{r}
-#JER WILL DO THIS ON TUESDAY
+codonbias <- function(aa){
+  #choose aa
+  aa_table <- mtb %>% as_tibble %>% filter(mtb$AmAcid == aa)
+  
+  #add observed frequencies of codon usage by factoring total counts
+  aa_table <- mutate(aa_table, obs_freq = aa_table$Number / sum(aa_table$Number))
+  
+  #add expected frequency based on 1/number of codons
+  aa_table <- mutate(aa_table, exp_freq = 1/nrow(aa_table))
+  
+  #find the difference between observed and expected frequencies
+  aa_table <- mutate(aa_table, usage_diff = obs_freq - exp_freq)
+  
+  print(aa_table)
+  row_max <- which.max(abs(aa_table$usage_diff))
+  
+  #required if the bias is AGAINST using a codon
+  if(nrow(aa_table) > 2 && aa_table$usage_diff[row_max] < 0){
+    print("Codon bias against, aka bias towards not using it")
+    print(aa_table$Codon[row_max])
+  }
+  
+  #requied if the bias is FOR using a codon
+  else if (nrow(aa_table) > 2 && aa_table$usage_diff[row_max] > 0){
+    print("Codon bias for, aka bias towards using it")
+    print(aa_table$Codon[row_max])
+  }
+  
+  #two codons availble means equal bias for/against
+  else if (nrow(aa_table) == 2) {
+    print("Only two available codons, usage for both codons deviates the same, equal bias")
+    print(aa_table$Codon)
+  }
+  
+  #one codon available means no bias possible
+  else if (nrow(aa_table) == 1){
+    print("Only one available codon")
+  }
+}
 ```
 
-## 2.4 Display GC content in a running window along the sequence of Staphylococcus aureus.
+### 2.4 Display GC content in a running window along the sequence of Staphylococcus aureus.
 
 a) Look at the complete staph object and then display the first three sequences in the set.
 
@@ -1063,9 +1104,9 @@ b) Find the GC content in sequence windows of width 100.
 
 ```{r}
 Nuc_sum = letterFrequency(staph, letters="ACGT", OR=0) # view letter frequency across all sequences
-Nuc_sum
 window = 100 # compute the GC content in a sliding window (as a fraction)
 gc = letterFrequencyInSlidingView(staph[[364]], 100, "GC")
+gc
 ```
 c) Display the GC content in a sliding window as a fraction.
 
@@ -1086,7 +1127,7 @@ plot(gc_freq, type = "l")
 lines(lowess(x = 1:length(gc_freq), y= gc_freq, f = 0.1), col = "red", lwd = 2)
 ```
 
-## 2.5 Redo a figure similar to Figure 2.17, but include two other distributions: the uniform (which is B(1,1)) and the B(1/2, 1/2).
+### 2.5 Redo a figure similar to Figure 2.17, but include two other distributions: the uniform (which is B(1,1)) and the B(1/2, 1/2).
 
 ```{r}
 theta = thetas[1:1000]
@@ -1110,7 +1151,7 @@ scale_colour_discrete(name  ="Prior",
 - The beta distribution represents all the possible values of a probability when we don’t know what that probability is (i.e., a probability distribution of probabilities).
 
 
-## 2.6 Re-analyse the data from Section 2.9.2 using a sketched prior.
+### 2.6 Re-analyse the data from Section 2.9.2 using a sketched prior.
 
 Using the shiny app, https://jhubiostatistics.shinyapps.io/drawyourprior/, the prior were calculated to be $\alpha$ = 4, $\beta$ = 5
 
